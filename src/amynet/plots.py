@@ -216,18 +216,35 @@ def plot_string_partners(
     scores = [i.combined_score for i in selected]
     colours = [BLUE if i.has_physical_evidence else GREY for i in selected]
 
-    fig, ax = plt.subplots(figsize=(7, max(4, len(selected) * 0.3)))
+    fig, ax = plt.subplots(figsize=(7.5, max(4, len(selected) * 0.32)))
     ax.barh(labels, scores, color=colours)
 
-    ax.axvline(0.9, color=RED, linestyle="--", linewidth=1.2)
-    ax.text(0.898, -0.7, "highest confidence", ha="right", fontsize=8, color=RED)
+    ax.axvline(0.9, color=RED, linestyle="--", linewidth=1.2, zorder=3)
+    ax.text(
+        0.9, len(selected) - 0.3, "highest\nconfidence",
+        ha="center", va="bottom", fontsize=7.5, color=RED, linespacing=1.2,
+    )
 
     ax.set_xlim(0, 1.02)
+    ax.set_ylim(-0.7, len(selected) + 0.6)
     ax.set_xlabel("STRING combined score")
-    ax.set_title("SIGMAR1 functional interaction partners", fontsize=11)
-    ax.barh([], [], color=BLUE, label="experimental / curated evidence")
-    ax.barh([], [], color=GREY, label="predicted or text-mined only")
-    ax.legend(frameon=False, fontsize=8.5, loc="lower right")
+    ax.set_title("SIGMAR1 functional interaction partners", fontsize=11, pad=34)
+
+    # Explicit handles: bars with empty data produce no legend swatch. The
+    # legend sits above the axes because every row of the plot is occupied.
+    from matplotlib.patches import Patch
+
+    ax.legend(
+        handles=[
+            Patch(facecolor=BLUE, label="experimental / curated evidence"),
+            Patch(facecolor=GREY, label="predicted or text-mined only"),
+        ],
+        frameon=False,
+        fontsize=8.5,
+        ncol=2,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.005),
+    )
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
 
