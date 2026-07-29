@@ -1,0 +1,8 @@
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	PANTHER	PTHR10868	SIGMA 1-TYPE OPIOID RECEPTOR-RELATED	5	220	6.2E-79	T	29-12-2024	IPR006716	ERG2/sigma1 receptor-like	GO:0005783(PANTHER)	Reactome:R-HSA-9679191
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	TMHMM	TMhelix	Region of a membrane-bound protein predicted to be embedded in the membrane.	9	31	-	T	29-12-2024	-	-	-	-
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Phobius	TRANSMEMBRANE	Region of a membrane-bound protein predicted to be embedded in the membrane.	89	111	-	T	29-12-2024	-	-	-	-
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Phobius	NON_CYTOPLASMIC_DOMAIN	Region of a membrane-bound protein predicted to be outside the membrane, in the extracellular region.	31	88	-	T	29-12-2024	-	-	-	-
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Phobius	CYTOPLASMIC_DOMAIN	Region of a membrane-bound protein predicted to be outside the membrane, in the cytoplasm.	112	223	-	T	29-12-2024	-	-	-	-
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Pfam	PF04622	ERG2 and Sigma1 receptor like protein	15	215	3.0E-61	T	29-12-2024	IPR006716	ERG2/sigma1 receptor-like	-	Reactome:R-HSA-9679191
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Phobius	TRANSMEMBRANE	Region of a membrane-bound protein predicted to be embedded in the membrane.	9	30	-	T	29-12-2024	-	-	-	-
+sp|Q99720|SGMR1_HUMAN	4a2f2e0981a7bef7f501c2164f7308b8	223	Phobius	CYTOPLASMIC_DOMAIN	Region of a membrane-bound protein predicted to be outside the membrane, in the cytoplasm.	1	8	-	T	29-12-2024	-	-	-	-

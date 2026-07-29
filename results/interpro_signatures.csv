@@ -1,0 +1,9 @@
+analysis,signature,description,start,stop,interpro,interpro_description
+Phobius,CYTOPLASMIC_DOMAIN,"Region of a membrane-bound protein predicted to be outside the membrane, in the cytoplasm.",1,8,-,-
+PANTHER,PTHR10868,SIGMA 1-TYPE OPIOID RECEPTOR-RELATED,5,220,IPR006716,ERG2/sigma1 receptor-like
+Phobius,TRANSMEMBRANE,Region of a membrane-bound protein predicted to be embedded in the membrane.,9,30,-,-
+TMHMM,TMhelix,Region of a membrane-bound protein predicted to be embedded in the membrane.,9,31,-,-
+Pfam,PF04622,ERG2 and Sigma1 receptor like protein,15,215,IPR006716,ERG2/sigma1 receptor-like
+Phobius,NON_CYTOPLASMIC_DOMAIN,"Region of a membrane-bound protein predicted to be outside the membrane, in the extracellular region.",31,88,-,-
+Phobius,TRANSMEMBRANE,Region of a membrane-bound protein predicted to be embedded in the membrane.,89,111,-,-
+Phobius,CYTOPLASMIC_DOMAIN,"Region of a membrane-bound protein predicted to be outside the membrane, in the cytoplasm.",112,223,-,-
