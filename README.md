@@ -85,15 +85,15 @@ The database (`amycodb`) is the 84 human proteins curated in **AmyCo** as causat
 
 SIGMAR1 (Q99720) is deliberately **not** a member of its own search database — a test asserts this, since including it would make the search circular.
 
-## Refinements over the original coursework version
+## Design decisions
 
-Reworked from an MSc assignment ([original Greek report](docs/original-report-gr.pdf)):
+Five choices that determine whether this analysis produces a conclusion or an artefact:
 
-- **A null model for the negative result.** The original ranked non-significant hits by E-value and reasoned about the top ones ("highest similarity with IGE_HUMAN … the match with huntingtin is interesting"). Those hits are noise. The shuffled-sequence control now demonstrates this quantitatively rather than asserting it.
-- **Alignment statistics instead of raw coverage.** The original tabulated Clustal coverage/identity pairs such as *98.7% coverage, 1.7% identity* for huntingtin and read them as possible structural similarity. Coverage of a 3144-residue protein by a 223-residue one is a length artefact. Gap fraction, mean pairwise identity and conserved-column counts are reported instead, which show the alignment carries no signal at all.
-- **Evidence classes in STRING.** Edges supported by experiments or curated databases are separated from text-mining-only edges, and functional enrichment with FDR control replaces visual inspection of the network image.
-- **A parsing bug fixed.** Phobius reports `TRANSMEMBRANE` in the signature-accession column while TMHMM uses `TMhelix`, so a description-only match silently missed the second TM helix (89–111). Both are now detected and overlapping predictions are merged; a test covers it.
-- **Reproducibility.** Sequences are fetched from UniProt by accession, the BLAST database is rebuilt from scratch, and 20 tests cover parsing, statistics and the biological invariants.
+- **A negative result needs a null model.** BLAST against an 84-sequence database returns E-values between 0.15 and 8.4 — small-looking numbers that invite a ranking and a story about the top few. They are noise, and asserting that is not the same as showing it. The shuffled-sequence control makes the claim testable, and it is what turns "no significant hits" into a quantified statement.
+- **Alignment coverage is not similarity.** In an 85-sequence alignment that is 92% gaps, a pair such as huntingtin and SIGMAR1 shows 98.7% "coverage" at 1.7% identity — an artefact of a 3,144-residue protein spanning a 223-residue one, not evidence of structural relatedness. Gap fraction, mean pairwise identity and conserved-column counts are reported instead, and they show the alignment carries no signal at all.
+- **STRING edges are split by evidence class.** Text-mining-only associations are the weakest thing STRING reports and are easy to mistake for experimental support. Edges backed by experiments or curated databases are separated out, and FDR-controlled functional enrichment replaces visual inspection of the network image.
+- **Predictor output formats disagree with each other.** Phobius reports `TRANSMEMBRANE` in the signature-accession column while TMHMM uses `TMhelix`; matching on the description field alone silently misses one of SIGMAR1's two TM helices. Both conventions are handled and overlapping predictions merged, with a test covering it.
+- **Everything regenerates from source.** Sequences are fetched from UniProt by pinned accession, the BLAST database is rebuilt from scratch, and 20 tests cover parsing, statistics and the biological invariants.
 
 ## Repository layout
 
@@ -109,7 +109,6 @@ src/amynet/
 tests/          pytest suite (20 tests)
 data/           Cached sequences and the InterPro annotation
 results/        Generated tables and figures
-docs/           Original coursework report
 ```
 
 ## Output files
