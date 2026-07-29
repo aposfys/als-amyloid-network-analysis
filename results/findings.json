@@ -1,0 +1,99 @@
+{
+  "blast": {
+    "hits_reported": 8,
+    "hits_significant": 0,
+    "best_bitscore": 25.4,
+    "null_model": {
+      "replicates": 100.0,
+      "mean_best_bitscore": 21.971,
+      "max_best_bitscore": 28.5,
+      "percentile_95": 25.8
+    },
+    "empirical_p_value": "> 0.05 (indistinguishable from chance)",
+    "conclusion": "No detectable sequence homology between SIGMAR1 and any amyloid-associated protein."
+  },
+  "msa": {
+    "sequences": 85,
+    "columns": 7194,
+    "gap_fraction": 0.9207,
+    "fully_conserved_columns": 0,
+    "mean_pairwise_identity_percent": 7.64,
+    "hydrophobic_stretches": [
+      {
+        "start": 8,
+        "end": 33,
+        "peak_hydropathy": 2.24
+      }
+    ],
+    "conclusion": "The alignment is gap-dominated and carries no phylogenetic signal; high 'coverage' values reflect sequence length, not homology."
+  },
+  "interpro": {
+    "interpro_families": [
+      {
+        "accession": "IPR006716",
+        "description": "ERG2/sigma1 receptor-like"
+      }
+    ],
+    "transmembrane_segments": [
+      {
+        "start": 9,
+        "stop": 31
+      },
+      {
+        "start": 89,
+        "stop": 111
+      }
+    ],
+    "topology": [
+      {
+        "start": 1,
+        "stop": 8,
+        "side": "cytoplasmic"
+      },
+      {
+        "start": 31,
+        "stop": 88,
+        "side": "non-cytoplasmic"
+      },
+      {
+        "start": 112,
+        "stop": 223,
+        "side": "cytoplasmic"
+      }
+    ],
+    "go_terms": [
+      "GO:0005783"
+    ],
+    "pathways": [
+      "Reactome:R-HSA-9679191"
+    ],
+    "analyses": [
+      "PANTHER",
+      "Pfam",
+      "Phobius",
+      "TMHMM"
+    ],
+    "protein_length": 223,
+    "family_coverage": 0.969,
+    "conclusion": "SIGMAR1 is a single-family ER membrane protein (ERG2/sigma1 receptor-like) with no amyloidogenic domain."
+  },
+  "string": {
+    "partners": 25,
+    "partners_with_physical_evidence": 20,
+    "amyloid_database_overlap": [],
+    "enriched_terms": 273,
+    "top_terms": [
+      "Cholesterol biosynthesis, and Primary bile acid biosynthesis",
+      "(2016) The Sigma-1 Receptor as a Pluripotent Modulator in Living Systems.",
+      "Cholesterol biosynthesis",
+      "Steroid hormone biosynthesis, and Oxidation by cytochrome P450",
+      "Steroid biosynthetic process",
+      "Sterol biosynthetic process",
+      "Sterol biosynthesis",
+      "Cholesterol biosynthesis pathway in hepatocytes",
+      "Steroid biosynthesis",
+      "Cholesterol metabolism with Bloch and Kandutsch-Russell pathways"
+    ],
+    "conclusion": "SIGMAR1 sits in a high-confidence ER network covering calcium release, chaperone-mediated folding and sterol biosynthesis."
+  }
+}

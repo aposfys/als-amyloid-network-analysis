@@ -1,0 +1,9 @@
+subject,identity_percent,alignment_length,evalue,bitscore,significant
+SCG1_HUMAN,32.143,28,0.15,25.4,False
+ZA2G_HUMAN,28.205,39,0.51,23.5,False
+GELS_HUMAN,39.394,33,0.91,23.1,False
+HD_HUMAN,32.558,43,1.6,22.3,False
+GPC1_HUMAN,40.0,25,4.2,20.8,False
+IGE_HUMAN,45.455,22,4.5,20.8,False
+FIBA_HUMAN,28.846,52,6.0,20.4,False
+DYSF_HUMAN,33.333,30,8.4,20.0,False
