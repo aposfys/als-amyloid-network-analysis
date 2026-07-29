@@ -1,0 +1,11 @@
+name: amynet
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.10
+  - blast>=2.13
+  - clustalo>=1.2
+  - biopython>=1.80
+  - matplotlib>=3.7
+  - pytest>=7.0
