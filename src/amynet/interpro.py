@@ -2,18 +2,30 @@
 
 from __future__ import annotations
 
-import json
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 INTERPRO_API = "https://www.ebi.ac.uk/interpro/api/entry/all/protein/uniprot/{accession}/"
 
 # Columns of the InterProScan TSV format, used when working from a local file.
 TSV_COLUMNS = [
-    "protein_accession", "md5", "length", "analysis", "signature_accession",
-    "signature_description", "start", "stop", "score", "status", "date",
-    "interpro_accession", "interpro_description", "go_terms", "pathways",
+    "protein_accession",
+    "md5",
+    "length",
+    "analysis",
+    "signature_accession",
+    "signature_description",
+    "start",
+    "stop",
+    "score",
+    "status",
+    "date",
+    "interpro_accession",
+    "interpro_description",
+    "go_terms",
+    "pathways",
 ]
 
 
@@ -98,7 +110,7 @@ def fetch_interpro_json(accession: str, destination: Path) -> Path:
     return destination
 
 
-def summarise(signatures: list[Signature]) -> dict[str, object]:
+def summarise(signatures: list[Signature]) -> dict[str, Any]:
     """Collapse signatures into the facts worth reporting."""
     families = sorted(
         {
@@ -110,9 +122,7 @@ def summarise(signatures: list[Signature]) -> dict[str, object]:
     tm_segments = _merge_overlapping(
         [(s.start, s.stop) for s in signatures if s.is_transmembrane]
     )
-    topology = sorted(
-        {(s.start, s.stop, s.topology) for s in signatures if s.topology}
-    )
+    topology = sorted({(s.start, s.stop, s.topology) for s in signatures if s.topology})
     go_terms = sorted(
         {
             term.split("(")[0]
@@ -133,8 +143,7 @@ def summarise(signatures: list[Signature]) -> dict[str, object]:
             {"start": start, "stop": stop} for start, stop in tm_segments
         ],
         "topology": [
-            {"start": start, "stop": stop, "side": side}
-            for start, stop, side in topology
+            {"start": start, "stop": stop, "side": side} for start, stop, side in topology
         ],
         "go_terms": go_terms,
         "pathways": pathways,
@@ -156,9 +165,7 @@ def _merge_overlapping(segments: list[tuple[int, int]]) -> list[tuple[int, int]]
 
 def domain_coverage(signatures: list[Signature], protein_length: int) -> float:
     """Fraction of the protein covered by its top-level InterPro family match."""
-    family_matches = [
-        s for s in signatures if s.interpro_accession not in {"-", ""}
-    ]
+    family_matches = [s for s in signatures if s.interpro_accession not in {"-", ""}]
     if not family_matches or protein_length <= 0:
         return 0.0
     covered = max(s.length for s in family_matches)

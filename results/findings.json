@@ -12,6 +12,121 @@
     "empirical_p_value": "> 0.05 (indistinguishable from chance)",
     "conclusion": "No detectable sequence homology between SIGMAR1 and any amyloid-associated protein."
   },
+  "embedding": {
+    "model": "ESM-2 650M",
+    "dimension": 1280,
+    "best_match": "ITM2B_HUMAN",
+    "best_cosine": 0.9543,
+    "null_model": {
+      "replicates": 30.0,
+      "mean_best_cosine": 0.9557,
+      "max_best_cosine": 0.9733,
+      "percentile_95": 0.9691
+    },
+    "verdict": "within the shuffled null (p > 0.05); attributable to composition",
+    "top_matches": [
+      {
+        "subject": "ITM2B_HUMAN",
+        "cosine": 0.9543
+      },
+      {
+        "subject": "AGRIN_HUMAN",
+        "cosine": 0.9518
+      },
+      {
+        "subject": "CO9_HUMAN",
+        "cosine": 0.9502
+      },
+      {
+        "subject": "GPC1_HUMAN",
+        "cosine": 0.95
+      },
+      {
+        "subject": "PGBM_HUMAN",
+        "cosine": 0.9491
+      },
+      {
+        "subject": "CLUS_HUMAN",
+        "cosine": 0.948
+      },
+      {
+        "subject": "APOC3_HUMAN",
+        "cosine": 0.9479
+      },
+      {
+        "subject": "LAMA1_HUMAN",
+        "cosine": 0.9477
+      },
+      {
+        "subject": "HD_HUMAN",
+        "cosine": 0.947
+      },
+      {
+        "subject": "FIBA_HUMAN",
+        "cosine": 0.945
+      }
+    ]
+  },
+  "structure": {
+    "models_compared": 81,
+    "alignments": 81,
+    "same_fold_hits": 0,
+    "best_tm_score": 0.1703,
+    "best_target": "Q08431",
+    "top_hits": [
+      {
+        "target": "Q08431",
+        "tm_score": 0.1703,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P01024",
+        "tm_score": 0.1653,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P02751",
+        "tm_score": 0.1608,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P02747",
+        "tm_score": 0.1583,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P47929",
+        "tm_score": 0.153,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P01023",
+        "tm_score": 0.1475,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P63104",
+        "tm_score": 0.1329,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P02746",
+        "tm_score": 0.1328,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P02745",
+        "tm_score": 0.1323,
+        "interpretation": "indistinguishable from random structure pairs"
+      },
+      {
+        "target": "P61278",
+        "tm_score": 0.131,
+        "interpretation": "indistinguishable from random structure pairs"
+      }
+    ],
+    "conclusion": "No amyloid-associated protein shares a fold with SIGMAR1."
+  },
   "msa": {
     "sequences": 85,
     "columns": 7194,

@@ -19,7 +19,9 @@ from statistics import mean
 from Bio import SeqIO
 
 # Standard 12-column tabular BLAST output.
-OUTFMT = "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore"
+OUTFMT = (
+    "6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore"
+)
 OUTFMT_FIELDS = OUTFMT.split()[1:]
 
 # Conventional threshold for calling a BLAST hit significant.
@@ -52,8 +54,7 @@ def _require(tool: str) -> str:
     path = shutil.which(tool)
     if path is None:
         raise RuntimeError(
-            f"{tool} not found on PATH. Install BLAST+ "
-            "(conda install -c bioconda blast)."
+            f"{tool} not found on PATH. Install BLAST+ (conda install -c bioconda blast)."
         )
     return path
 
@@ -64,11 +65,15 @@ def make_database(fasta: Path, db_prefix: Path, title: str = "amycodb") -> Path:
     subprocess.run(
         [
             _require("makeblastdb"),
-            "-in", str(fasta),
-            "-dbtype", "prot",
+            "-in",
+            str(fasta),
+            "-dbtype",
+            "prot",
             "-parse_seqids",
-            "-title", title,
-            "-out", str(db_prefix),
+            "-title",
+            title,
+            "-out",
+            str(db_prefix),
         ],
         check=True,
         capture_output=True,
@@ -94,11 +99,16 @@ def run_blastp(
     result = subprocess.run(
         [
             _require("blastp"),
-            "-query", str(query),
-            "-db", str(db_prefix),
-            "-outfmt", OUTFMT,
-            "-evalue", str(evalue),
-            "-num_threads", str(threads),
+            "-query",
+            str(query),
+            "-db",
+            str(db_prefix),
+            "-outfmt",
+            OUTFMT,
+            "-evalue",
+            str(evalue),
+            "-num_threads",
+            str(threads),
         ],
         check=True,
         capture_output=True,

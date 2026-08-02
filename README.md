@@ -1,15 +1,21 @@
-# Is SIGMAR1 Linked to the Amyloidoses? A Four-Method Bioinformatics Assessment
+# Is SIGMAR1 Linked to the Amyloidoses? A Three-Tier Homology Assessment
+
+[![CI](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
 
 **SIGMAR1** encodes the sigma-1 receptor, an ER chaperone whose loss-of-function mutations cause **ALS16**. This project asks whether that ALS link runs through the amyloidoses, by testing SIGMAR1 against a **custom BLAST database of 84 amyloid- and amyloidosis-associated proteins** built from [AmyCo](https://bioinformatics.biol.uoa.gr/amyco/), then following up with alignment, domain and network analysis.
 
 The answer is a clean negative at the sequence level and a strong positive at the network level — and separating those two is the point of the project.
 
-| Stage | Tool | Result |
+| Tier | Method | Result |
 | --- | --- | --- |
-| 1. Sequence similarity | BLAST+ `blastp` + shuffled-sequence null model | **No homology.** 0/84 significant hits; the best real hit scores *below* the maximum of the random null |
-| 2. Multiple alignment | Clustal Omega | **No phylogenetic signal.** 92.1% gaps, 7.6% mean pairwise identity, 0 fully conserved columns |
-| 3. Domain architecture | InterPro (PANTHER, Pfam, Phobius, TMHMM) | Single family **IPR006716** over 97% of the protein; two TM helices; ER-localised |
-| 4. Interaction network | STRING | **25 partners, 20 with experimental or curated evidence**; 273 terms enriched at FDR ≤ 0.05 |
+| 1. Sequence | BLAST+ `blastp` + shuffled-sequence null | **No homology.** 0/84 significant; best hit scores below the random null |
+| 2. Embedding | ESM-2 650M cosine similarity + shuffled null | **No homology.** Best cosine 0.954, but shuffled sequences average 0.956 |
+| 3. Structure | Foldseek vs AlphaFold DB models | **No shared fold.** Max TM-score 0.170; 0 of 81 above 0.5 |
+| Domain | InterPro (PANTHER, Pfam, Phobius, TMHMM) | Single family **IPR006716** over 97% of the protein; two TM helices; ER-localised |
+| Network | STRING | **25 partners, 20 with experimental or curated evidence**; 273 terms enriched at FDR ≤ 0.05 |
 
 ## The headline result
 
@@ -31,6 +37,47 @@ To make that concrete, this project adds a **shuffled-sequence null model**: 100
 The best genuine hit does not even reach the 95th percentile of what a *randomised* SIGMAR1 achieves. Empirical *p* > 0.05: **indistinguishable from chance**. The Clustal Omega alignment agrees — at 92% gaps and 7.6% mean pairwise identity across 85 sequences, the "coverage" figures that a naive reading might treat as similarity are an artefact of sequence length, not evidence of relatedness.
 
 **SIGMAR1 is not a homologue of any amyloidogenic protein.** That is a real finding, not a failed experiment.
+
+## Two more sensitive tests, both also negative
+
+A negative BLAST result only rules out *detectable sequence* similarity. Two methods can see further, and both were run.
+
+### Tier 2 — protein language model embeddings
+
+<p align="center">
+  <img src="results/embedding_similarity.png" width="760" alt="ESM-2 embedding similarity against the shuffled-sequence null">
+</p>
+
+ESM-2 650M maps each protein to a 1280-dimensional vector shaped by patterns learned across UniRef, and proteins with shared structure or function can sit close together even when their sequences have diverged past alignment.
+
+SIGMAR1's closest neighbour in that space is **ITM2B** (integral membrane protein 2B, itself an amyloidosis gene) at **cosine 0.954** — a number that looks like near-identity.
+
+It is not. Shuffled SIGMAR1 sequences, with the same length and amino-acid composition but no sequence order at all, achieve a *higher* mean best cosine:
+
+| | Best cosine to the database |
+| --- | ---: |
+| Real SIGMAR1 | 0.954 |
+| Shuffled null, mean | **0.956** |
+| Shuffled null, 95th percentile | 0.969 |
+| Shuffled null, maximum | 0.973 |
+
+**Mean-pooled embeddings encode amino-acid composition strongly, so almost any two proteins have a high cosine.** Without the null, 0.954 would have been reported as a striking similarity. This is the same control as the BLAST tier, and it is why it was applied here too.
+
+### Tier 3 — structural alignment
+
+<p align="center">
+  <img src="results/structural_similarity.png" width="760" alt="Foldseek TM-scores against the amyloid database">
+</p>
+
+Structure outlives sequence. AlphaFold DB models were downloaded for SIGMAR1 and 81 of the 84 database proteins, and aligned with Foldseek in a purely local search.
+
+**Maximum TM-score: 0.170. Zero structures reach the 0.5 threshold for a shared fold** — every alignment sits below 0.3, the level random structure pairs produce.
+
+> **A trap worth naming.** Foldseek reports three TM-score columns. `alntmscore` is normalised by *alignment* length, so a short local match scores near 1.0 regardless of how little of either protein was involved — it can even exceed 1.0. Reading that column turns these 35-residue partial matches into 13 apparent fold-level hits, including an impossible TM-score of 1.045 against tau. The conventional TM-score, the one the 0.5 threshold was calibrated on, is normalised by chain length: `qtmscore`. Both are reported in the output CSV.
+
+### All three tiers agree
+
+Sequence, embedding and structure independently return nothing. A negative from any one method is weak evidence; a negative from all three, each with its own null or calibrated threshold, is strong.
 
 ## Where the actual evidence is
 
@@ -56,7 +103,9 @@ Enriched cellular components are consistent throughout: *endoplasmic reticulum m
 
 ## Conclusion
 
-Any link between SIGMAR1 and the amyloidoses is **functional and mechanistic, not evolutionary**. Sequence-based methods correctly return nothing; the signal lives entirely in localisation, domain function and interaction context. Methodologically that is the useful lesson: a negative BLAST result is only interpretable once you know what the null distribution looks like.
+Any link between SIGMAR1 and the amyloidoses is **functional and mechanistic, not evolutionary**. Sequence, embedding and structural search all correctly return nothing; the signal lives entirely in localisation, domain function and interaction context.
+
+Methodologically the lesson generalises beyond this protein: **every similarity score needs a null before it means anything.** A BLAST E-value of 0.15 against an 84-sequence database, an embedding cosine of 0.954, and a Foldseek `alntmscore` of 1.045 all look like findings. None of them is one. The shuffled-sequence control and the correctly-normalised TM-score are what separate the three negatives from three false positives.
 
 ## Quick start
 
@@ -74,10 +123,14 @@ Individual stages, for iterating:
 
 ```bash
 python -m amynet.cli --stages blast --null-replicates 1000
+python -m amynet.cli --stages embedding --esm-model 35M   # faster, smaller model
+python -m amynet.cli --stages structure                   # Foldseek vs AlphaFold DB
 python -m amynet.cli --stages string
 ```
 
 Results from earlier stages are preserved when you re-run a subset.
+
+**Optional dependencies.** The base install needs Biopython and NumPy. The embedding tier additionally needs torch and transformers (`pip install -e ".[embeddings]"`); they are imported lazily, so the other five stages run without them. The structural tier needs `foldseek` on PATH (`conda install -c bioconda foldseek`) and downloads ~81 AlphaFold models on first run, cached afterwards.
 
 ## Reference database
 
@@ -93,7 +146,10 @@ Five choices that determine whether this analysis produces a conclusion or an ar
 - **Alignment coverage is not similarity.** In an 85-sequence alignment that is 92% gaps, a pair such as huntingtin and SIGMAR1 shows 98.7% "coverage" at 1.7% identity — an artefact of a 3,144-residue protein spanning a 223-residue one, not evidence of structural relatedness. Gap fraction, mean pairwise identity and conserved-column counts are reported instead, and they show the alignment carries no signal at all.
 - **STRING edges are split by evidence class.** Text-mining-only associations are the weakest thing STRING reports and are easy to mistake for experimental support. Edges backed by experiments or curated databases are separated out, and FDR-controlled functional enrichment replaces visual inspection of the network image.
 - **Predictor output formats disagree with each other.** Phobius reports `TRANSMEMBRANE` in the signature-accession column while TMHMM uses `TMhelix`; matching on the description field alone silently misses one of SIGMAR1's two TM helices. Both conventions are handled and overlapping predictions merged, with a test covering it.
-- **Everything regenerates from source.** Sequences are fetched from UniProt by pinned accession, the BLAST database is rebuilt from scratch, and 20 tests cover parsing, statistics and the biological invariants.
+- **Embedding similarity needs the same null as BLAST.** Mean-pooled language model vectors encode amino-acid composition heavily, so cosine similarities between arbitrary proteins routinely exceed 0.95. The shuffled-sequence control is what makes the number interpretable, and here it shows the observed 0.954 to be *below* the composition-matched average.
+- **TM-scores must be normalised by chain length.** Foldseek's `alntmscore` divides by alignment length and inflates short local matches past 1.0. `qtmscore` is the value the 0.5 fold-similarity threshold was calibrated against.
+- **The structural search runs locally.** AlphaFold models are downloaded once and searched with a local Foldseek database rather than a shared web service, so the result is reproducible and does not depend on someone else's queue.
+- **Everything regenerates from source.** Sequences are fetched from UniProt by pinned accession, the BLAST database is rebuilt from scratch, AlphaFold URLs are resolved through the API rather than hardcoded to a model version, and 20 tests cover parsing, statistics and the biological invariants.
 
 ## Repository layout
 
@@ -103,6 +159,8 @@ src/amynet/
   blast.py      Database construction, blastp, and the shuffled null model
   msa.py        Clustal Omega, alignment statistics, hydropathy scan
   interpro.py   InterProScan TSV parsing, domain and topology summary
+  embeddings.py ESM-2 embedding, cosine similarity, shuffled null
+  structure.py  AlphaFold model retrieval and local Foldseek search
   stringdb.py   STRING network, evidence classes, functional enrichment
   plots.py      Figures
   cli.py        Staged pipeline
@@ -116,6 +174,8 @@ results/        Generated tables and figures
 | File | Contents |
 | --- | --- |
 | `results/blast_hits.csv` | All hits with identity, E-value, bitscore, significance flag |
+| `results/embedding_similarity.csv` | Cosine similarity of every database protein to SIGMAR1 |
+| `results/foldseek_hits.csv` | Structural alignments with both TM-score normalisations |
 | `results/alignment.aln` | 85-sequence Clustal Omega alignment |
 | `results/alignment_coverage.csv` | Per-sequence coverage and identity against SIGMAR1 |
 | `results/interpro_signatures.csv` | Every InterProScan signature with coordinates |
@@ -132,7 +192,11 @@ results/        Generated tables and figures
 5. Sievers, F. *et al.* (2011). Fast, scalable generation of high-quality protein multiple sequence alignments using Clustal Omega. *Molecular Systems Biology* **7**, 539.
 6. Paysan-Lafosse, T. *et al.* (2023). InterPro in 2022. *Nucleic Acids Research* **51**, D418–D427.
 7. Szklarczyk, D. *et al.* (2023). The STRING database in 2023. *Nucleic Acids Research* **51**, D638–D646.
-8. Kyte, J. & Doolittle, R. F. (1982). A simple method for displaying the hydropathic character of a protein. *Journal of Molecular Biology* **157**, 105–132.
+8. Lin, Z. *et al.* (2023). Evolutionary-scale prediction of atomic-level protein structure with a language model. *Science* **379**, 1123–1130. (ESM-2)
+9. van Kempen, M. *et al.* (2024). Fast and accurate protein structure search with Foldseek. *Nature Biotechnology* **42**, 243–246.
+10. Varadi, M. *et al.* (2024). AlphaFold Protein Structure Database in 2024. *Nucleic Acids Research* **52**, D368–D375.
+11. Zhang, Y. & Skolnick, J. (2004). Scoring function for automated assessment of protein structure template quality. *Proteins* **57**, 702–710. (TM-score)
+12. Kyte, J. & Doolittle, R. F. (1982). A simple method for displaying the hydropathic character of a protein. *Journal of Molecular Biology* **157**, 105–132.
 
 ## Author
 

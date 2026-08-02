@@ -7,11 +7,11 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
-from .blast import SIGNIFICANCE_THRESHOLD, Hit  # noqa: E402
-from .interpro import Signature  # noqa: E402
-from .stringdb import Interaction  # noqa: E402
+from .blast import SIGNIFICANCE_THRESHOLD, Hit
+from .interpro import Signature
+from .stringdb import Interaction
 
 BLUE = "#1f77b4"
 ORANGE = "#e8a33d"
@@ -19,9 +19,7 @@ RED = "#b4413c"
 GREY = "#b8c4cc"
 
 
-def plot_blast_null_model(
-    hits: list[Hit], null: dict[str, float], path: Path
-) -> Path:
+def plot_blast_null_model(hits: list[Hit], null: dict[str, float], path: Path) -> Path:
     """Observed best-hit bitscores against the shuffled-sequence null."""
     top = hits[:12]
     labels = [hit.subject_name.replace("_HUMAN", "") for hit in top]
@@ -56,7 +54,7 @@ def plot_blast_null_model(
     )
     ax.tick_params(axis="x", rotation=60)
     for label in ax.get_xticklabels():
-        label.set_ha("right")
+        label.set_horizontalalignment("right")
     ax.legend(frameon=False, fontsize=8.5, loc="upper right")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
@@ -207,9 +205,7 @@ def plot_domain_architecture(
     return path
 
 
-def plot_string_partners(
-    interactions: list[Interaction], path: Path, top: int = 20
-) -> Path:
+def plot_string_partners(interactions: list[Interaction], path: Path, top: int = 20) -> Path:
     """Rank STRING partners by confidence, flagging the evidence class."""
     selected = interactions[:top][::-1]
     labels = [i.partner_b for i in selected]
@@ -221,8 +217,14 @@ def plot_string_partners(
 
     ax.axvline(0.9, color=RED, linestyle="--", linewidth=1.2, zorder=3)
     ax.text(
-        0.9, len(selected) - 0.3, "highest\nconfidence",
-        ha="center", va="bottom", fontsize=7.5, color=RED, linespacing=1.2,
+        0.9,
+        len(selected) - 0.3,
+        "highest\nconfidence",
+        ha="center",
+        va="bottom",
+        fontsize=7.5,
+        color=RED,
+        linespacing=1.2,
     )
 
     ax.set_xlim(0, 1.02)
@@ -245,6 +247,98 @@ def plot_string_partners(
         loc="lower center",
         bbox_to_anchor=(0.5, 1.005),
     )
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+    return path
+
+
+def plot_embedding_similarity(similarities, null: dict, path: Path) -> Path:
+    """Embedding cosine similarity against the shuffled-sequence null."""
+    top = similarities[:15]
+    labels = [s.subject_name.replace("_HUMAN", "") for s in top]
+    scores = [s.cosine for s in top]
+
+    fig, ax = plt.subplots(figsize=(8.5, 4.6))
+    ax.bar(labels, scores, color=GREY, edgecolor="white")
+
+    ax.axhline(
+        null["mean_best_cosine"],
+        color="#7a3f3c",
+        linestyle="-",
+        linewidth=1.6,
+        label=f"mean of shuffled null ({null['mean_best_cosine']:.3f})",
+    )
+    ax.axhline(
+        null["percentile_95"],
+        color=RED,
+        linestyle="--",
+        linewidth=1.4,
+        label=f"95th percentile of shuffled null ({null['percentile_95']:.3f})",
+    )
+    ax.axhline(
+        null["max_best_cosine"],
+        color=RED,
+        linestyle=":",
+        linewidth=1.4,
+        label=f"maximum of shuffled null ({null['max_best_cosine']:.3f})",
+    )
+
+    ceiling = max([*scores, null["max_best_cosine"]])
+    floor = min([*scores, null["mean_best_cosine"]])
+    margin = (ceiling - floor) or 0.1
+    ax.set_ylim(max(0.0, floor - 0.35 * margin), ceiling + 0.45 * margin)
+
+    ax.set_ylabel("Cosine similarity to SIGMAR1")
+    ax.set_title(
+        "ESM-2 embedding similarity, against composition-matched shuffles",
+        fontsize=11,
+    )
+    ax.tick_params(axis="x", rotation=60)
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment("right")
+    ax.legend(frameon=False, fontsize=8.5, loc="upper right")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+    return path
+
+
+def plot_structural_hits(hits, path: Path) -> Path:
+    """Foldseek TM-scores against the fold-similarity thresholds."""
+    top = hits[:20]
+    labels = [hit.target_accession for hit in top]
+    scores = [hit.tm_score for hit in top]
+    colours = [BLUE if hit.shares_a_fold else GREY for hit in top]
+
+    fig, ax = plt.subplots(figsize=(8.5, 4.6))
+    ax.bar(labels, scores, color=colours, edgecolor="white")
+
+    ax.axhline(0.5, color=RED, linestyle="--", linewidth=1.4, label="TM = 0.5, shared fold")
+    ax.axhline(
+        0.3,
+        color="#c8a45c",
+        linestyle=":",
+        linewidth=1.4,
+        label="TM = 0.3, random structure pairs",
+    )
+
+    ax.set_ylim(0, max([*scores, 0.6]) * 1.25)
+    ax.set_ylabel("TM-score vs SIGMAR1")
+    ax.set_title(
+        "Structural alignment against AlphaFold models of the amyloid database",
+        fontsize=11,
+    )
+    ax.tick_params(axis="x", rotation=60)
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment("right")
+    ax.legend(frameon=False, fontsize=8.5, loc="upper right")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
 
