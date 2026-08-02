@@ -6,12 +6,13 @@ import argparse
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 from Bio import SeqIO
 
-from . import blast, interpro, msa, stringdb, uniprot
+from . import blast, embeddings, interpro, msa, stringdb, structure, uniprot
 
-STAGES = ("blast", "msa", "interpro", "string")
+STAGES = ("blast", "embedding", "structure", "msa", "interpro", "string")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -39,6 +40,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--no-figures", action="store_true")
+
+    plm_group = parser.add_argument_group("embedding stage")
+    plm_group.add_argument(
+        "--esm-model",
+        default=embeddings.DEFAULT_MODEL,
+        help=(
+            "ESM-2 checkpoint: a size key "
+            f"({', '.join(embeddings.ESM2_MODELS)}) or a HuggingFace name. "
+            f"Default: {embeddings.DEFAULT_MODEL}."
+        ),
+    )
+    plm_group.add_argument(
+        "--device", default="auto", help="torch device: auto, mps, cuda or cpu."
+    )
+    plm_group.add_argument("--embed-batch-size", type=int, default=8)
+    plm_group.add_argument(
+        "--embedding-null-replicates",
+        type=int,
+        default=30,
+        help="Shuffled replicates for the embedding null model. Default: 30.",
+    )
     return parser.parse_args(argv)
 
 
@@ -62,16 +84,20 @@ def run_blast_stage(args, query: Path, database: Path, findings: dict) -> list[b
     hits = blast.parse_hits(tabular)
 
     significant = [hit for hit in hits if hit.significant]
-    print(f"{len(hits)} hits reported against 84 sequences; "
-          f"{len(significant)} at E <= {blast.SIGNIFICANCE_THRESHOLD}.")
+    print(
+        f"{len(hits)} hits reported against 84 sequences; "
+        f"{len(significant)} at E <= {blast.SIGNIFICANCE_THRESHOLD}."
+    )
 
     print(f"Running shuffled-sequence null model ({args.null_replicates} replicates)...")
     null = blast.shuffled_null_model(query, db_prefix, replicates=args.null_replicates)
     best = max((hit.bitscore for hit in hits), default=0.0)
     p_value = blast.empirical_p_value(best, null)
 
-    print(f"Best real bitscore {best:.1f}; shuffled null mean "
-          f"{null['mean_best_bitscore']:.1f}, max {null['max_best_bitscore']:.1f}.")
+    print(
+        f"Best real bitscore {best:.1f}; shuffled null mean "
+        f"{null['mean_best_bitscore']:.1f}, max {null['max_best_bitscore']:.1f}."
+    )
     print(f"Empirical p-value for the best hit: {p_value}")
 
     _write_csv(
@@ -112,8 +138,174 @@ def run_blast_stage(args, query: Path, database: Path, findings: dict) -> list[b
     return hits
 
 
+def run_embedding_stage(args, query: Path, database: Path, findings: dict) -> None:
+    """Tier 2: does a protein language model see what BLAST could not?"""
+    print("\n=== 2. Embedding similarity (ESM-2) ===")
+
+    cache = args.data_dir / "embeddings"
+    print(
+        f"Embedding the {uniprot.QUERY_GENE} query and the 84-protein database "
+        f"with ESM-2 {args.esm_model}..."
+    )
+    _, query_vectors = embeddings.embed_fasta(
+        query,
+        cache / f"query_{args.esm_model}.npz",
+        model=args.esm_model,
+        device=args.device,
+        batch_size=args.embed_batch_size,
+    )
+    identifiers, database_vectors = embeddings.embed_fasta(
+        database,
+        cache / f"amycodb_{args.esm_model}.npz",
+        model=args.esm_model,
+        device=args.device,
+        batch_size=args.embed_batch_size,
+    )
+
+    similarities = embeddings.cosine_similarities(
+        query_vectors[0], database_vectors, identifiers
+    )
+    best = similarities[0]
+    print(f"Closest in embedding space: {best.subject_name} at cosine {best.cosine:.4f}")
+    for item in similarities[:5]:
+        print(f"    {item.subject_name:16s} {item.cosine:.4f}")
+
+    record = next(SeqIO.parse(query, "fasta"))
+    print(
+        f"Running shuffled-sequence null model "
+        f"({args.embedding_null_replicates} replicates)..."
+    )
+    null = embeddings.shuffled_null(
+        str(record.seq),
+        database_vectors,
+        model=args.esm_model,
+        replicates=args.embedding_null_replicates,
+        device=args.device,
+        batch_size=args.embed_batch_size,
+    )
+    conclusion = embeddings.verdict(best.cosine, null)
+    print(
+        f"Shuffled null: mean {null['mean_best_cosine']:.4f}, "
+        f"95th pct {null['percentile_95']:.4f}, max {null['max_best_cosine']:.4f}"
+    )
+    print(f"Verdict: {conclusion}")
+
+    _write_csv(
+        [
+            {"subject": s.subject_name, "cosine_similarity": round(s.cosine, 4)}
+            for s in similarities
+        ],
+        args.results_dir / "embedding_similarity.csv",
+    )
+
+    findings["embedding"] = {
+        "model": f"ESM-2 {args.esm_model}",
+        "dimension": int(database_vectors.shape[1]),
+        "best_match": best.subject_name,
+        "best_cosine": round(best.cosine, 4),
+        "null_model": null,
+        "verdict": conclusion,
+        "top_matches": [
+            {"subject": s.subject_name, "cosine": round(s.cosine, 4)}
+            for s in similarities[:10]
+        ],
+    }
+
+    if not args.no_figures:
+        from .plots import plot_embedding_similarity
+
+        plot_embedding_similarity(
+            similarities, null, args.results_dir / "embedding_similarity.png"
+        )
+
+
+def run_structure_stage(args, findings: dict) -> None:
+    """Tier 3: structural alignment, which outlives sequence similarity."""
+    print("\n=== 3. Structural homology (Foldseek vs AlphaFold DB) ===")
+
+    models_dir = args.data_dir / "alphafold"
+    query_dir = models_dir / "query"
+    targets_dir = models_dir / "amycodb"
+
+    query_models = structure.fetch_models([uniprot.QUERY_ACCESSION], query_dir)
+    if not query_models:
+        print("No AlphaFold model available for the query; skipping stage.")
+        return
+
+    print(
+        f"Fetching AlphaFold models for {len(uniprot.AMYCO_ACCESSIONS)} "
+        "database proteins (cached after the first run)..."
+    )
+    target_models = structure.fetch_models(uniprot.AMYCO_ACCESSIONS, targets_dir)
+    print(f"{len(target_models)}/{len(uniprot.AMYCO_ACCESSIONS)} models available")
+
+    hits = structure.parse_hits(
+        structure.search(
+            query_models[uniprot.QUERY_ACCESSION],
+            targets_dir,
+            args.results_dir / "foldseek_hits.tsv",
+            workspace=args.data_dir / "foldseek_tmp",
+        )
+    )
+
+    same_fold = [hit for hit in hits if hit.shares_a_fold]
+    print(
+        f"{len(hits)} structural alignments; {len(same_fold)} at TM-score >= "
+        f"{structure.SAME_FOLD_TM_SCORE} (same fold)"
+    )
+    for hit in hits[:5]:
+        print(
+            f"    {hit.target_accession:8s} TM {hit.tm_score:.3f}  "
+            f"aln {hit.alignment_length:4d}  lDDT {hit.lddt:.3f}  "
+            f"{hit.interpretation}"
+        )
+
+    _write_csv(
+        [
+            {
+                "target": hit.target_accession,
+                "tm_score_query_normalised": round(hit.tm_score, 4),
+                "tm_score_alignment_normalised": round(hit.alignment_tm_score, 4),
+                "lddt": round(hit.lddt, 4),
+                "identity": round(hit.identity, 4),
+                "alignment_length": hit.alignment_length,
+                "evalue": hit.evalue,
+                "interpretation": hit.interpretation,
+            }
+            for hit in hits
+        ],
+        args.results_dir / "foldseek_hits.csv",
+    )
+
+    findings["structure"] = {
+        "models_compared": len(target_models),
+        "alignments": len(hits),
+        "same_fold_hits": len(same_fold),
+        "best_tm_score": round(hits[0].tm_score, 4) if hits else 0.0,
+        "best_target": hits[0].target_accession if hits else None,
+        "top_hits": [
+            {
+                "target": hit.target_accession,
+                "tm_score": round(hit.tm_score, 4),
+                "interpretation": hit.interpretation,
+            }
+            for hit in hits[:10]
+        ],
+        "conclusion": (
+            "No amyloid-associated protein shares a fold with SIGMAR1."
+            if not same_fold
+            else f"{len(same_fold)} database proteins share a fold with SIGMAR1."
+        ),
+    }
+
+    if not args.no_figures:
+        from .plots import plot_structural_hits
+
+        plot_structural_hits(hits, args.results_dir / "structural_similarity.png")
+
+
 def run_msa_stage(args, query: Path, database: Path, findings: dict) -> None:
-    print("\n=== 2. Multiple sequence alignment (Clustal Omega) ===")
+    print("\n=== 4. Multiple sequence alignment (Clustal Omega) ===")
     combined = msa.combine_sequences(query, database, args.data_dir / "combined.fasta")
     alignment_path = msa.run_clustalo(
         combined, args.results_dir / "alignment.aln", threads=args.threads
@@ -121,10 +313,13 @@ def run_msa_stage(args, query: Path, database: Path, findings: dict) -> None:
     alignment = msa.load_alignment(alignment_path)
     stats = msa.alignment_stats(alignment)
 
-    print(f"{stats.sequences} sequences, {stats.columns} columns, "
-          f"{stats.gap_fraction:.1%} gaps.")
-    print(f"Mean pairwise identity {stats.mean_pairwise_identity:.2f}%; "
-          f"{stats.fully_conserved_columns} fully conserved columns.")
+    print(
+        f"{stats.sequences} sequences, {stats.columns} columns, {stats.gap_fraction:.1%} gaps."
+    )
+    print(
+        f"Mean pairwise identity {stats.mean_pairwise_identity:.2f}%; "
+        f"{stats.fully_conserved_columns} fully conserved columns."
+    )
 
     coverage = msa.query_coverage(alignment, uniprot.QUERY_ACCESSION)
     _write_csv(coverage, args.results_dir / "alignment_coverage.csv")
@@ -132,8 +327,10 @@ def run_msa_stage(args, query: Path, database: Path, findings: dict) -> None:
     record = next(SeqIO.parse(query, "fasta"))
     sequence = str(record.seq)
     regions = msa.hydrophobic_stretches(sequence)
-    print(f"Kyte-Doolittle scan finds {len(regions)} hydrophobic stretch(es): "
-          + ", ".join(f"{r['start']}-{r['end']}" for r in regions))
+    print(
+        f"Kyte-Doolittle scan finds {len(regions)} hydrophobic stretch(es): "
+        + ", ".join(f"{r['start']}-{r['end']}" for r in regions)
+    )
 
     findings["msa"] = {
         **stats.as_dict(),
@@ -146,7 +343,7 @@ def run_msa_stage(args, query: Path, database: Path, findings: dict) -> None:
 
 
 def run_interpro_stage(args, query: Path, findings: dict) -> list[interpro.Signature]:
-    print("\n=== 3. Domain architecture (InterPro) ===")
+    print("\n=== 5. Domain architecture (InterPro) ===")
     tsv = args.data_dir / "interpro_sigmar1.tsv"
     if not tsv.exists():
         raise FileNotFoundError(
@@ -163,10 +360,14 @@ def run_interpro_stage(args, query: Path, findings: dict) -> list[interpro.Signa
     for family in summary["interpro_families"]:
         print(f"{family['accession']}  {family['description']}")
     print(f"Family match covers {coverage:.0%} of the {length}-residue protein.")
-    print("Transmembrane segments: "
-          + ", ".join(f"{s['start']}-{s['stop']}" for s in summary["transmembrane_segments"]))
-    print("Topology: "
-          + ", ".join(f"{s['start']}-{s['stop']} {s['side']}" for s in summary["topology"]))
+    print(
+        "Transmembrane segments: "
+        + ", ".join(f"{s['start']}-{s['stop']}" for s in summary["transmembrane_segments"])
+    )
+    print(
+        "Topology: "
+        + ", ".join(f"{s['start']}-{s['stop']} {s['side']}" for s in summary["topology"])
+    )
     print("GO terms: " + ", ".join(summary["go_terms"]))
 
     _write_csv(
@@ -206,7 +407,7 @@ def run_interpro_stage(args, query: Path, findings: dict) -> list[interpro.Signa
 
 
 def run_string_stage(args, database: Path, findings: dict) -> None:
-    print("\n=== 4. Interaction network (STRING) ===")
+    print("\n=== 6. Interaction network (STRING) ===")
     partners_path = stringdb.fetch_partners(
         uniprot.QUERY_GENE, args.data_dir / "string_partners.tsv"
     )
@@ -214,26 +415,27 @@ def run_string_stage(args, database: Path, findings: dict) -> None:
     genes = stringdb.partner_genes(interactions, uniprot.QUERY_GENE)
 
     physical = [i for i in interactions if i.has_physical_evidence]
-    print(f"{len(interactions)} partners; {len(physical)} with experimental or "
-          "curated evidence.")
+    print(
+        f"{len(interactions)} partners; {len(physical)} with experimental or curated evidence."
+    )
     for interaction in interactions[:6]:
-        print(f"  {interaction.partner_b:10s} {interaction.combined_score:.3f}  "
-              f"{interaction.confidence}")
+        print(
+            f"  {interaction.partner_b:10s} {interaction.combined_score:.3f}  "
+            f"{interaction.confidence}"
+        )
 
     amyloid_names = {
         record.id.split("|")[2].replace("_HUMAN", "")
         for record in SeqIO.parse(database, "fasta")
         if len(record.id.split("|")) > 2
     }
-    overlap = stringdb.overlap_with_database(
-        interactions, uniprot.QUERY_GENE, amyloid_names
+    overlap = stringdb.overlap_with_database(interactions, uniprot.QUERY_GENE, amyloid_names)
+    print(
+        f"Partners that are themselves in the amyloid database: "
+        f"{', '.join(overlap) if overlap else 'none'}"
     )
-    print(f"Partners that are themselves in the amyloid database: "
-          f"{', '.join(overlap) if overlap else 'none'}")
 
-    enrichment_path = stringdb.fetch_enrichment(
-        genes, args.data_dir / "string_enrichment.tsv"
-    )
+    enrichment_path = stringdb.fetch_enrichment(genes, args.data_dir / "string_enrichment.tsv")
     enrichment = stringdb.parse_enrichment(enrichment_path)
     print(f"{len(enrichment)} enriched terms at FDR <= 0.05. Top terms:")
     for row in enrichment[:6]:
@@ -291,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
     # Carry forward stages from earlier runs so `--stages blast` does not discard
     # the results of the other three.
     summary_path = args.results_dir / "findings.json"
-    findings: dict[str, object] = {}
+    findings: dict[str, Any] = {}
     if summary_path.exists():
         try:
             findings = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -300,6 +502,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if "blast" in args.stages:
         run_blast_stage(args, query, database, findings)
+    if "embedding" in args.stages:
+        run_embedding_stage(args, query, database, findings)
+    if "structure" in args.stages:
+        run_structure_stage(args, findings)
     if "msa" in args.stages:
         run_msa_stage(args, query, database, findings)
     if "interpro" in args.stages:

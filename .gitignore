@@ -6,6 +6,11 @@ dist/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .DS_Store
 data/blastdb/
 data/combined.fasta
+data/embeddings/
+data/alphafold/
+data/foldseek_tmp/
