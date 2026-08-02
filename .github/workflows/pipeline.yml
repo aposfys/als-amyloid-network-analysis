@@ -1,0 +1,106 @@
+name: Pipeline
+
+# CI proves the code is sound; this proves the pipeline still runs against the
+# live UniProt, STRING, AlphaFold and RCSB services with the real toolchain.
+# Every stage executes, with the null models reduced so it finishes in minutes.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/amynet/**"
+      - "environment.yml"
+      - ".github/workflows/pipeline.yml"
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: End-to-end smoke run
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the bioinformatics toolchain
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - name: Install the package
+        run: pip install -e ".[dev,embeddings]"
+
+      - name: Verify the external tools are callable
+        run: |
+          blastp -version && clustalo --version && foldseek version
+
+      - name: Sequence, alignment, domain and network stages
+        run: |
+          python -m amynet.cli \
+            --results-dir ci-results \
+            --stages blast msa interpro string \
+            --null-replicates 10
+
+      - name: Embedding stage
+        run: |
+          python -m amynet.cli \
+            --results-dir ci-results \
+            --stages embedding --esm-model 8M \
+            --embedding-null-replicates 5
+
+      - name: Structural stage
+        run: |
+          python -m amynet.cli --results-dir ci-results --stages structure
+
+      - name: Check the conclusions still hold
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          findings = json.loads(Path("ci-results/findings.json").read_text())
+          for stage in ("blast", "embedding", "structure", "msa", "interpro", "string"):
+              if stage not in findings:
+                  sys.exit(f"stage produced no findings: {stage}")
+
+          # The headline result across all three homology tiers is a negative.
+          # If any of them starts reporting a hit, that is either a genuine
+          # upstream data change or a regression, and either way needs a human.
+          if findings["blast"]["hits_significant"]:
+              sys.exit("BLAST now reports a significant hit -- investigate")
+          if findings["structure"]["same_fold_hits"]:
+              sys.exit("Foldseek now reports a shared fold -- investigate")
+
+          # SIGMAR1's domain assignment and localisation are stable facts.
+          families = {f["accession"] for f in findings["interpro"]["interpro_families"]}
+          if "IPR006716" not in families:
+              sys.exit(f"IPR006716 no longer assigned: {sorted(families)}")
+
+          # HSPA5/BiP is the best-established interaction partner.
+          if findings["string"]["partners"] < 10:
+              sys.exit("STRING returned an implausibly small network")
+
+          print(f"BLAST: {findings['blast']['hits_significant']} significant hits")
+          print(f"Embedding: best cosine {findings['embedding']['best_cosine']}, "
+                f"{findings['embedding']['verdict']}")
+          print(f"Structure: best TM {findings['structure']['best_tm_score']}, "
+                f"{findings['structure']['same_fold_hits']} shared folds")
+          print("all three tiers still negative")
+          PY
+
+      - name: Upload outputs for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-results
+          path: ci-results/
+          retention-days: 7
