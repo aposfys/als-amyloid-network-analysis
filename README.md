@@ -1,6 +1,7 @@
 # Is SIGMAR1 Linked to the Amyloidoses? A Three-Tier Homology Assessment
 
 [![CI](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/ci.yml)
+[![Pipeline](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/pipeline.yml/badge.svg)](https://github.com/aposfys/als-amyloid-network-analysis/actions/workflows/pipeline.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://docs.astral.sh/ruff/)
