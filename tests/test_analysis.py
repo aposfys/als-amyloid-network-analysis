@@ -196,3 +196,111 @@ def test_known_chaperone_partner_is_recovered():
 def test_partners_are_sorted_by_confidence():
     scores = [i.combined_score for i in stringdb.parse_partners(DATA / "string_partners.tsv")]
     assert scores == sorted(scores, reverse=True)
+
+
+# --- embeddings --------------------------------------------------------------
+
+
+def test_windows_never_exceed_the_position_limit():
+    from amynet import embeddings
+
+    for length in (100, 1022, 1023, 3000, 5000):
+        chunks = list(embeddings.windows("A" * length))
+        assert all(len(chunk) <= embeddings.MAX_RESIDUES for chunk in chunks)
+        assert chunks, "no windows produced"
+
+
+def test_short_sequences_are_a_single_window():
+    from amynet import embeddings
+
+    assert list(embeddings.windows("A" * 500)) == ["A" * 500]
+
+
+def test_windows_cover_the_whole_sequence():
+    """A C-terminal transmembrane anchor must not be truncated away."""
+    from amynet import embeddings
+
+    sequence = "".join(chr(65 + i % 26) for i in range(2500))
+    chunks = list(embeddings.windows(sequence))
+    assert chunks[-1].endswith(sequence[-50:])
+
+
+def test_cosine_similarity_is_ordered_and_bounded():
+    import numpy as np
+
+    from amynet import embeddings
+
+    query = np.array([1.0, 0.0, 0.0])
+    database = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.7, 0.7, 0.0]])
+    result = embeddings.cosine_similarities(query, database, ["same", "orthogonal", "half"])
+
+    assert [item.subject for item in result] == ["same", "half", "orthogonal"]
+    assert result[0].cosine == pytest.approx(1.0)
+    assert result[-1].cosine == pytest.approx(0.0, abs=1e-6)
+
+
+def test_embedding_verdict_bands():
+    from amynet import embeddings
+
+    null = {
+        "replicates": 30.0,
+        "mean_best_cosine": 0.9557,
+        "max_best_cosine": 0.9733,
+        "percentile_95": 0.9691,
+    }
+    assert "p < 0.033" in embeddings.verdict(0.99, null)
+    assert "95th percentile" in embeddings.verdict(0.97, null)
+    assert "composition" in embeddings.verdict(0.9543, null)
+
+
+# --- structural homology -----------------------------------------------------
+
+
+def _structural_hit(tm: float, aln_tm: float = 0.0, target: str = "AF-P37840-F1-model_v6.pdb"):
+    from amynet import structure
+
+    return structure.StructuralHit(
+        query="AF-Q99720-F1-model_v6.pdb",
+        target=target,
+        identity=0.1,
+        alignment_length=80,
+        evalue=1.0,
+        bits=30.0,
+        tm_score=tm,
+        alignment_tm_score=aln_tm,
+        lddt=0.3,
+    )
+
+
+def test_target_accession_is_extracted_from_the_alphafold_filename():
+    assert _structural_hit(0.2).target_accession == "P37840"
+
+
+def test_fold_similarity_thresholds():
+    from amynet import structure
+
+    assert _structural_hit(0.6).shares_a_fold
+    assert not _structural_hit(0.4).shares_a_fold
+    assert _structural_hit(0.6).interpretation == "same fold"
+    assert _structural_hit(0.4).interpretation == "partial structural similarity"
+    assert "random" in _structural_hit(0.17).interpretation
+    assert structure.SAME_FOLD_TM_SCORE == 0.5
+
+
+def test_alignment_normalised_tm_score_is_kept_separate():
+    """alntmscore can exceed 1.0 and must never drive the fold-similarity call."""
+    hit = _structural_hit(tm=0.17, aln_tm=1.045)
+    assert not hit.shares_a_fold
+    assert hit.alignment_tm_score > 1.0
+
+
+@pytest.mark.skipif(
+    not (RESULTS / "foldseek_hits.tsv").exists(), reason="run `make analysis` first"
+)
+def test_no_amyloid_protein_shares_a_fold_with_sigmar1():
+    from amynet import structure
+
+    hits = structure.parse_hits(RESULTS / "foldseek_hits.tsv")
+    assert hits, "foldseek produced no alignments"
+    assert not [hit for hit in hits if hit.shares_a_fold]
+    assert max(hit.tm_score for hit in hits) < structure.RANDOM_TM_SCORE

@@ -67,9 +67,12 @@ def run_clustalo(
     output.parent.mkdir(parents=True, exist_ok=True)
     base = [
         _require("clustalo"),
-        "-i", str(fasta),
-        "-o", str(output),
-        "--outfmt", output_format,
+        "-i",
+        str(fasta),
+        "-o",
+        str(output),
+        "--outfmt",
+        output_format,
         "--force",
     ]
 
@@ -96,7 +99,7 @@ def load_alignment(path: Path, fmt: str = "clustal") -> MultipleSeqAlignment:
 def _pairwise_identity(first: str, second: str) -> float:
     """Percent identity over columns where both sequences have a residue."""
     matches = aligned = 0
-    for a, b in zip(first, second):
+    for a, b in zip(first, second, strict=True):
         if a == GAP or b == GAP:
             continue
         aligned += 1
@@ -141,9 +144,7 @@ def query_coverage(alignment: MultipleSeqAlignment, query_id_fragment: str) -> l
     the other sequence also has a residue. Reported alongside identity, because
     coverage on its own says nothing about homology in a gap-dominated alignment.
     """
-    query_record = next(
-        (r for r in alignment if query_id_fragment in r.id), None
-    )
+    query_record = next((r for r in alignment if query_id_fragment in r.id), None)
     if query_record is None:
         raise ValueError(f"Query {query_id_fragment!r} not found in alignment")
 
@@ -154,9 +155,7 @@ def query_coverage(alignment: MultipleSeqAlignment, query_id_fragment: str) -> l
     for record in alignment:
         other = str(record.seq)
         overlap = sum(
-            1
-            for q, o in zip(query_seq, other)
-            if q != GAP and o != GAP
+            1 for q, o in zip(query_seq, other, strict=True) if q != GAP and o != GAP
         )
         rows.append(
             {
@@ -173,16 +172,35 @@ def query_coverage(alignment: MultipleSeqAlignment, query_id_fragment: str) -> l
     return rows
 
 
-def hydrophobic_stretches(sequence: str, window: int = 19, threshold: float = 1.6) -> list[dict]:
+def hydrophobic_stretches(
+    sequence: str, window: int = 19, threshold: float = 1.6
+) -> list[dict]:
     """Locate windows whose mean Kyte-Doolittle hydropathy exceeds a threshold.
 
     A window of 19 with a mean score above ~1.6 is the classic signature of a
     membrane-spanning helix (Kyte & Doolittle, 1982).
     """
     kd = {
-        "A": 1.8, "R": -4.5, "N": -3.5, "D": -3.5, "C": 2.5, "Q": -3.5, "E": -3.5,
-        "G": -0.4, "H": -3.2, "I": 4.5, "L": 3.8, "K": -3.9, "M": 1.9, "F": 2.8,
-        "P": -1.6, "S": -0.8, "T": -0.7, "W": -0.9, "Y": -1.3, "V": 4.2,
+        "A": 1.8,
+        "R": -4.5,
+        "N": -3.5,
+        "D": -3.5,
+        "C": 2.5,
+        "Q": -3.5,
+        "E": -3.5,
+        "G": -0.4,
+        "H": -3.2,
+        "I": 4.5,
+        "L": 3.8,
+        "K": -3.9,
+        "M": 1.9,
+        "F": 2.8,
+        "P": -1.6,
+        "S": -0.8,
+        "T": -0.7,
+        "W": -0.9,
+        "Y": -1.3,
+        "V": 4.2,
     }
     scores = [
         sum(kd.get(residue, 0.0) for residue in sequence[i : i + window]) / window
@@ -219,6 +237,5 @@ def residue_composition(sequence: str) -> dict[str, float]:
     counts = Counter(sequence)
     total = sum(counts.values())
     return {
-        residue: round(100.0 * count / total, 2)
-        for residue, count in sorted(counts.items())
+        residue: round(100.0 * count / total, 2) for residue, count in sorted(counts.items())
     }

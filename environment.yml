@@ -6,6 +6,8 @@ dependencies:
   - python>=3.10
   - blast>=2.13
   - clustalo>=1.2
+  - foldseek>=9
   - biopython>=1.80
+  - numpy>=1.24
   - matplotlib>=3.7
   - pytest>=7.0
