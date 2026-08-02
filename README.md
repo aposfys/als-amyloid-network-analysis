@@ -198,8 +198,6 @@ results/        Generated tables and figures
 11. Zhang, Y. & Skolnick, J. (2004). Scoring function for automated assessment of protein structure template quality. *Proteins* **57**, 702–710. (TM-score)
 12. Kyte, J. & Doolittle, R. F. (1982). A simple method for displaying the hydropathic character of a protein. *Journal of Molecular Biology* **157**, 105–132.
 
-## Author
+---
 
-**Apostolos Fysekidis** — MSc Bioinformatics & Computational Biology, National and Kapodistrian University of Athens.
-
-Licensed under the [MIT License](LICENSE).
+Apostolos Fysekidis · [MIT Licence](LICENSE)
