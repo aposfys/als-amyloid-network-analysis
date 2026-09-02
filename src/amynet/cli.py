@@ -6,13 +6,13 @@ import argparse
 import csv
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from Bio import SeqIO
 
-from . import blast, embeddings, interpro, msa, stringdb, structure, uniprot
+from . import amyloid, blast, embeddings, interpro, msa, stringdb, structure, uniprot
 
-STAGES = ("blast", "embedding", "structure", "msa", "interpro", "string")
+STAGES = ("blast", "embedding", "structure", "propensity", "msa", "interpro", "string")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -60,6 +60,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=30,
         help="Shuffled replicates for the embedding null model. Default: 30.",
+    )
+    parser.add_argument(
+        "--propensity-replicates",
+        type=int,
+        default=1000,
+        help=(
+            "Shuffled replicates for the amyloidogenic-propensity null. The "
+            "scan is pure arithmetic over cached sequences, so this is cheap "
+            "and the default is far higher than the embedding null's. "
+            "Default: 1000."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -304,6 +315,58 @@ def run_structure_stage(args, findings: dict) -> None:
         plot_structural_hits(hits, args.results_dir / "structural_similarity.png")
 
 
+def run_propensity_stage(args, query: Path, database: Path, findings: dict) -> None:
+    """Measure amyloidogenic propensity directly, which homology cannot.
+
+    The other three tiers ask whether SIGMAR1 is *related* to amyloid proteins.
+    Amyloidogenicity is a local property that unrelated proteins share, so a
+    negative from all three leaves the named question open. This stage closes
+    it, on the same reference set, with the same null discipline.
+    """
+    from Bio import SeqIO
+
+    print("\n== Amyloidogenic propensity ==")
+    record = next(SeqIO.parse(str(query), "fasta"))
+    reference = [
+        (entry.id.split("|")[-1], str(entry.seq))
+        for entry in SeqIO.parse(str(database), "fasta")
+    ]
+
+    report = amyloid.compare(
+        record.id.split("|")[-1],
+        str(record.seq),
+        reference,
+        replicates=args.propensity_replicates,
+    )
+
+    print(
+        f"Peak hexapeptide score {report['query_peak']} at the "
+        f"{report['percentile_within_reference']}th percentile of "
+        f"{report['reference_size']} amyloid-associated proteins "
+        f"(median {report['reference_median']}, max {report['reference_max']})."
+    )
+    print(
+        f"Against {args.propensity_replicates} composition-preserving shuffles: "
+        f"p = {report['empirical_p_value']}"
+    )
+    segments = cast("list[dict[str, object]]", report["query_top_segments"])
+    top = ", ".join(f"{s['sequence']}@{s['start']}" for s in segments[:3])
+    print(f"Highest-scoring windows: {top}")
+
+    power = cast("dict[str, object]", report["shuffle_test_power"])
+    print(
+        f"Shuffle-test power on the reference set: "
+        f"{power['significant_at_alpha']}/{power['tested']} known amyloid "
+        f"proteins detected (median p {power['median_p_value']})."
+    )
+    if not report["discriminates"]:
+        print(
+            "  -> This screen cannot license a negative. The tier is reported "
+            "as inconclusive, not as evidence against amyloidogenicity."
+        )
+    findings["propensity"] = report
+
+
 def run_msa_stage(args, query: Path, database: Path, findings: dict) -> None:
     print("\n=== 4. Multiple sequence alignment (Clustal Omega) ===")
     combined = msa.combine_sequences(query, database, args.data_dir / "combined.fasta")
@@ -392,7 +455,10 @@ def run_interpro_stage(args, query: Path, findings: dict) -> list[interpro.Signa
         "family_coverage": coverage,
         "conclusion": (
             "SIGMAR1 is a single-family ER membrane protein (ERG2/sigma1 "
-            "receptor-like) with no amyloidogenic domain."
+            "receptor-like). InterPro assigns families over the whole chain "
+            "and carries no amyloidogenic signature, so it cannot speak to "
+            "aggregation propensity either way -- see the propensity stage, "
+            "which measures that directly."
         ),
     }
 
@@ -506,6 +572,8 @@ def main(argv: list[str] | None = None) -> int:
         run_embedding_stage(args, query, database, findings)
     if "structure" in args.stages:
         run_structure_stage(args, findings)
+    if "propensity" in args.stages:
+        run_propensity_stage(args, query, database, findings)
     if "msa" in args.stages:
         run_msa_stage(args, query, database, findings)
     if "interpro" in args.stages:

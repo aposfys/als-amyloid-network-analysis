@@ -127,6 +127,90 @@
     ],
     "conclusion": "No amyloid-associated protein shares a fold with SIGMAR1."
   },
+  "propensity": {
+    "method": {
+      "window": 6,
+      "scales": "normalised Kyte-Doolittle hydropathy x Chou-Fasman P(beta)",
+      "replicates": 1000,
+      "caveat": "A propensity screen from published amino-acid scales, not a validated aggregation predictor. Reports relative placement within the reference set, not an absolute claim about any segment."
+    },
+    "query": "SGMR1_HUMAN",
+    "query_peak": 0.6234,
+    "query_top_segments": [
+      {
+        "start": 25,
+        "sequence": "VVWLWL",
+        "score": 0.6234
+      },
+      {
+        "start": 21,
+        "sequence": "VLTQVV",
+        "score": 0.5886
+      },
+      {
+        "start": 79,
+        "sequence": "LQWVFV",
+        "score": 0.5523
+      },
+      {
+        "start": 13,
+        "sequence": "ALLLAV",
+        "score": 0.5404
+      },
+      {
+        "start": 14,
+        "sequence": "LLLAVA",
+        "score": 0.5404
+      }
+    ],
+    "reference_size": 84,
+    "reference_median": 0.6301,
+    "reference_max": 0.8214,
+    "reference_top": [
+      {
+        "protein": "DYSF_HUMAN",
+        "peak": 0.8214
+      },
+      {
+        "protein": "IAPP_HUMAN",
+        "peak": 0.7891
+      },
+      {
+        "protein": "IGM_HUMAN",
+        "peak": 0.7824
+      },
+      {
+        "protein": "PRIO_HUMAN",
+        "peak": 0.782
+      },
+      {
+        "protein": "HBB_HUMAN",
+        "peak": 0.7693
+      }
+    ],
+    "percentile_within_reference": 47.6,
+    "null_mean": 0.6445,
+    "null_max": 0.8903,
+    "empirical_p_value": 0.5864,
+    "shuffle_test_power": {
+      "tested": 84,
+      "significant_at_alpha": 11,
+      "detection_rate": 0.131,
+      "alpha": 0.05,
+      "median_p_value": 0.296,
+      "examples": [
+        "APOC2_HUMAN",
+        "APOC3_HUMAN",
+        "C1QA_HUMAN",
+        "CALC_HUMAN",
+        "CDSN_HUMAN",
+        "FIBA_HUMAN",
+        "HBB_HUMAN",
+        "IAPP_HUMAN"
+      ]
+    },
+    "discriminates": false
+  },
   "msa": {
     "sequences": 85,
     "columns": 7194,
