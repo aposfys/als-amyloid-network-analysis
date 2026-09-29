@@ -13,6 +13,7 @@ is only evidence if a randomised query does not achieve it as easily.
 
 from __future__ import annotations
 
+import importlib.util
 import random
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -32,6 +33,20 @@ DEFAULT_MODEL = "650M"
 
 MAX_RESIDUES = 1022
 WINDOW_OVERLAP = 128
+
+INSTALL_HINT = 'pip install -e ".[embeddings]"'
+
+
+def dependencies_available() -> bool:
+    """True when torch and transformers can be imported.
+
+    Both are optional extras and are imported lazily, so the other stages run
+    without them. The pipeline checks this before starting rather than failing
+    halfway through a run.
+    """
+    return all(
+        importlib.util.find_spec(name) is not None for name in ("torch", "transformers")
+    )
 
 
 @dataclass(frozen=True)

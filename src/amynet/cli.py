@@ -29,8 +29,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--stages",
         nargs="+",
         choices=STAGES,
-        default=list(STAGES),
-        help="Which analysis stages to run. Default: all.",
+        default=None,
+        help=(
+            "Which analysis stages to run. Default: all, skipping the embedding "
+            "stage with a message if torch and transformers are not installed."
+        ),
     )
     parser.add_argument(
         "--null-replicates",
@@ -72,7 +75,38 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Default: 1000."
         ),
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    args.stages_requested = args.stages is not None
+    if args.stages is None:
+        args.stages = list(STAGES)
+    return args
+
+
+def _resolve_stages(args: argparse.Namespace) -> list[str]:
+    """Drop the embedding stage from a default run when its extras are missing.
+
+    An explicit ``--stages embedding`` without torch is an error, reported
+    before any stage runs. A default run skips the stage and says so, so the
+    base install still produces every other result.
+    """
+    stages = list(args.stages)
+    if "embedding" not in stages or embeddings.dependencies_available():
+        return stages
+    if args.stages_requested:
+        raise SystemExit(
+            "The embedding stage needs torch and transformers. "
+            f"Install them with: {embeddings.INSTALL_HINT}"
+        )
+    print(
+        "Skipping the embedding stage because torch and transformers are not "
+        f"installed ({embeddings.INSTALL_HINT})."
+    )
+    return [stage for stage in stages if stage != "embedding"]
+
+
+def _save_findings(findings: dict[str, Any], path: Path) -> None:
+    ordered = {stage: findings[stage] for stage in STAGES if stage in findings}
+    path.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8")
 
 
 def _write_csv(rows: list[dict], path: Path) -> None:
@@ -320,8 +354,9 @@ def run_propensity_stage(args, query: Path, database: Path, findings: dict) -> N
 
     The other three tiers ask whether SIGMAR1 is *related* to amyloid proteins.
     Amyloidogenicity is a local property that unrelated proteins share, so a
-    negative from all three leaves the named question open. This stage closes
-    it, on the same reference set, with the same null discipline.
+    negative from all three leaves the named question open. This stage measures
+    the property directly, on the same reference set, with the same null
+    discipline, and reports whether its own test has the power to answer.
     """
     from Bio import SeqIO
 
@@ -551,13 +586,14 @@ def run_string_stage(args, database: Path, findings: dict) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    stages = _resolve_stages(args)
     args.results_dir.mkdir(parents=True, exist_ok=True)
 
     query = uniprot.fetch_query(args.data_dir / "sigmar1.fasta")
     database = uniprot.fetch_database(args.data_dir / "amycodb.fasta")
 
     # Carry forward stages from earlier runs so `--stages blast` does not discard
-    # the results of the other three.
+    # the results of the others.
     summary_path = args.results_dir / "findings.json"
     findings: dict[str, Any] = {}
     if summary_path.exists():
@@ -566,23 +602,22 @@ def main(argv: list[str] | None = None) -> int:
         except json.JSONDecodeError:
             findings = {}
 
-    if "blast" in args.stages:
-        run_blast_stage(args, query, database, findings)
-    if "embedding" in args.stages:
-        run_embedding_stage(args, query, database, findings)
-    if "structure" in args.stages:
-        run_structure_stage(args, findings)
-    if "propensity" in args.stages:
-        run_propensity_stage(args, query, database, findings)
-    if "msa" in args.stages:
-        run_msa_stage(args, query, database, findings)
-    if "interpro" in args.stages:
-        run_interpro_stage(args, query, findings)
-    if "string" in args.stages:
-        run_string_stage(args, database, findings)
+    runners = {
+        "blast": lambda: run_blast_stage(args, query, database, findings),
+        "embedding": lambda: run_embedding_stage(args, query, database, findings),
+        "structure": lambda: run_structure_stage(args, findings),
+        "propensity": lambda: run_propensity_stage(args, query, database, findings),
+        "msa": lambda: run_msa_stage(args, query, database, findings),
+        "interpro": lambda: run_interpro_stage(args, query, findings),
+        "string": lambda: run_string_stage(args, database, findings),
+    }
+    # Save after every stage, so a failure late in a run keeps what came before.
+    for stage in STAGES:
+        if stage in stages:
+            runners[stage]()
+            _save_findings(findings, summary_path)
 
-    findings = {stage: findings[stage] for stage in STAGES if stage in findings}
-    summary_path.write_text(json.dumps(findings, indent=2) + "\n", encoding="utf-8")
+    _save_findings(findings, summary_path)
     print(f"\nAll findings written to {summary_path}")
     return 0
 

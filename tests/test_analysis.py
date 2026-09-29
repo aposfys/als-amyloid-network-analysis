@@ -304,3 +304,66 @@ def test_no_amyloid_protein_shares_a_fold_with_sigmar1():
     assert hits, "foldseek produced no alignments"
     assert not [hit for hit in hits if hit.shares_a_fold]
     assert max(hit.tm_score for hit in hits) < structure.RANDOM_TM_SCORE
+
+
+# --- pipeline driver ---------------------------------------------------------
+
+
+def _stub_stages(monkeypatch, calls, fail_at=None):
+    """Replace every stage runner with a stub that records a finding."""
+    from amynet import cli
+
+    def make(stage):
+        def run(*args):
+            if stage == fail_at:
+                raise RuntimeError(f"{stage} failed")
+            calls.append(stage)
+            args[-1][stage] = {"ran": True}
+
+        return run
+
+    for stage in cli.STAGES:
+        monkeypatch.setattr(cli, f"run_{stage}_stage", make(stage))
+
+
+def test_default_run_skips_the_embedding_stage_without_torch(monkeypatch, tmp_path):
+    """The base install must still produce every result that does not need torch."""
+    from amynet import cli, embeddings
+
+    monkeypatch.setattr(embeddings, "dependencies_available", lambda: False)
+    calls: list[str] = []
+    _stub_stages(monkeypatch, calls)
+
+    assert cli.main(["--data-dir", str(DATA), "--results-dir", str(tmp_path)]) == 0
+    assert "embedding" not in calls
+    assert calls == [stage for stage in cli.STAGES if stage != "embedding"]
+
+
+def test_explicit_embedding_stage_without_torch_fails_before_running(monkeypatch, tmp_path):
+    from amynet import cli, embeddings
+
+    monkeypatch.setattr(embeddings, "dependencies_available", lambda: False)
+    calls: list[str] = []
+    _stub_stages(monkeypatch, calls)
+
+    argv = ["--data-dir", str(DATA), "--results-dir", str(tmp_path)]
+    with pytest.raises(SystemExit, match="embeddings"):
+        cli.main([*argv, "--stages", "blast", "embedding"])
+    assert calls == []
+
+
+def test_findings_are_saved_after_each_stage(monkeypatch, tmp_path):
+    """A failure in a late stage must not discard the findings of earlier ones."""
+    import json
+
+    from amynet import cli
+
+    calls: list[str] = []
+    _stub_stages(monkeypatch, calls, fail_at="msa")
+
+    argv = ["--data-dir", str(DATA), "--results-dir", str(tmp_path)]
+    with pytest.raises(RuntimeError, match="msa failed"):
+        cli.main([*argv, "--stages", "blast", "propensity", "msa", "string"])
+
+    saved = json.loads((tmp_path / "findings.json").read_text(encoding="utf-8"))
+    assert list(saved) == ["blast", "propensity"]
