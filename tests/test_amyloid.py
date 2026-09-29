@@ -68,21 +68,41 @@ def reference():
     return [(r.id.split("|")[-1], str(r.seq)) for r in SeqIO.parse(str(path), "fasta")]
 
 
-def test_the_scale_ranks_canonical_amyloids_at_the_top(reference):
+def _ranked_by_peak(reference):
+    return [
+        name
+        for name, _ in sorted(
+            ((name, peak_score(seq)) for name, seq in reference),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    ]
+
+
+def test_the_scale_ranks_some_canonical_amyloids_at_the_top(reference):
     """A sanity check on the screen itself, not on SIGMAR1.
 
-    The prion protein and islet amyloid polypeptide are the two textbook
-    amyloid formers in this reference set. A propensity scale that did not place
-    them near the top would not be worth applying to anything else.
+    The prion protein and islet amyloid polypeptide are strong amyloid formers,
+    and a propensity scale that did not place them near the top would not be
+    worth applying to anything else.
     """
-    ranked = sorted(
-        ((name, peak_score(seq)) for name, seq in reference),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    top_ten = {name for name, _ in ranked[:10]}
+    top_ten = set(_ranked_by_peak(reference)[:10])
     assert "PRIO_HUMAN" in top_ten
     assert "IAPP_HUMAN" in top_ten
+
+
+def test_the_scale_misses_other_canonical_amyloids(reference):
+    """The limit of the same sanity check, asserted rather than left out.
+
+    Alpha-synuclein and tau are canonical amyloid formers, yet this scale puts
+    both in the bottom quarter of the reference set. The screen recovers some
+    known formers and misses others, which is part of why the tier is reported
+    as inconclusive.
+    """
+    ranked = _ranked_by_peak(reference)
+    bottom_quarter = set(ranked[-len(ranked) // 4 :])
+    assert "SYUA_HUMAN" in bottom_quarter
+    assert "TAU_HUMAN" in bottom_quarter
 
 
 def test_the_shuffle_test_has_too_little_power_to_license_a_negative(reference):
@@ -133,9 +153,9 @@ def test_the_top_windows_concentrate_in_the_transmembrane_helices():
 
     A hydrophobicity-driven scale scores membrane-spanning segments highly
     because they are hydrophobic by function, not because they aggregate. Most
-    of SIGMAR1's highest-scoring windows fall inside its two annotated TM
-    helices, which is the reason its placement in the AmyCo distribution should
-    not be read as an aggregation signal.
+    of SIGMAR1's eight highest-scoring windows start inside an annotated TM
+    helix, mostly the first, which is the reason its placement in the AmyCo
+    distribution should not be read as an aggregation signal.
     """
     path = DATA / "sigmar1.fasta"
     if not path.exists():
