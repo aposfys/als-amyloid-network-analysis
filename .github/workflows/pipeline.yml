@@ -1,8 +1,10 @@
 name: Pipeline
 
-# CI proves the code is sound; this proves the pipeline still runs against the
-# live UniProt, STRING, AlphaFold and RCSB services with the real toolchain.
-# Every stage executes, with the null models reduced so it finishes in minutes.
+# CI proves the code is sound. This proves the pipeline still runs end to end
+# with the real toolchain. AlphaFold models and the ESM-2 weights are fetched
+# live, while UniProt sequences and the STRING network are read from the cache
+# files committed under data/. Every stage executes, with the null models
+# reduced so it finishes in minutes.
 
 on:
   schedule:
@@ -61,6 +63,13 @@ jobs:
         run: |
           python -m amynet.cli --results-dir ci-results --stages structure
 
+      - name: Propensity stage
+        run: |
+          python -m amynet.cli \
+            --results-dir ci-results \
+            --stages propensity \
+            --propensity-replicates 100
+
       - name: Check the conclusions still hold
         run: |
           python - <<'PY'
@@ -68,7 +77,9 @@ jobs:
           from pathlib import Path
 
           findings = json.loads(Path("ci-results/findings.json").read_text())
-          for stage in ("blast", "embedding", "structure", "msa", "interpro", "string"):
+          for stage in (
+              "blast", "embedding", "structure", "propensity", "msa", "interpro", "string"
+          ):
               if stage not in findings:
                   sys.exit(f"stage produced no findings: {stage}")
 
@@ -79,6 +90,12 @@ jobs:
               sys.exit("BLAST now reports a significant hit -- investigate")
           if findings["structure"]["same_fold_hits"]:
               sys.exit("Foldseek now reports a shared fold -- investigate")
+
+          # The propensity screen is reported as inconclusive because its shuffle
+          # test misses most known amyloid proteins. If that changes, the write-up
+          # has to change with it.
+          if findings["propensity"]["discriminates"]:
+              sys.exit("The propensity screen now discriminates, so the write-up needs revisiting")
 
           # SIGMAR1's domain assignment and localisation are stable facts.
           families = {f["accession"] for f in findings["interpro"]["interpro_families"]}
@@ -94,7 +111,11 @@ jobs:
                 f"{findings['embedding']['verdict']}")
           print(f"Structure: best TM {findings['structure']['best_tm_score']}, "
                 f"{findings['structure']['same_fold_hits']} shared folds")
-          print("all three tiers still negative")
+          power = findings["propensity"]["shuffle_test_power"]
+          print(f"Propensity: {findings['propensity']['percentile_within_reference']}th "
+                f"percentile, shuffle test detects {power['significant_at_alpha']}/"
+                f"{power['tested']} known amyloid proteins")
+          print("all three homology tiers still negative, propensity still inconclusive")
           PY
 
       - name: Upload outputs for inspection
