@@ -6,7 +6,7 @@ third-party tools it invokes, carry their own terms.
 | Source | Used for | Licence |
 | --- | --- | --- |
 | [UniProt](https://www.uniprot.org/help/license) | SIGMAR1 and the 84 reference sequences | CC BY 4.0 |
-| [AmyCo](https://bioinformatics.biol.uoa.gr/amyco/) | The choice of which 84 proteins form the database | Accession list only — a set of identifiers, not redistributed AmyCo content |
+| [AmyCo](https://bioinformatics.biol.uoa.gr/amyco/) | The choice of which 84 proteins form the database | Accession list only, a set of identifiers, not redistributed AmyCo content |
 | [AlphaFold DB](https://alphafold.ebi.ac.uk/) | Predicted structures for the Foldseek search | CC BY 4.0 (© DeepMind Technologies Ltd) |
 | [STRING](https://string-db.org/cgi/access) | Interaction network and functional enrichment | CC BY 4.0 |
 | [InterPro](https://www.ebi.ac.uk/about/terms-of-use/) | Domain and topology annotation | EMBL-EBI terms; CC0 where applicable |

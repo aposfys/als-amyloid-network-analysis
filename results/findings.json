@@ -274,7 +274,7 @@
     ],
     "protein_length": 223,
     "family_coverage": 0.969,
-    "conclusion": "SIGMAR1 is a single-family ER membrane protein (ERG2/sigma1 receptor-like) with no amyloidogenic domain."
+    "conclusion": "SIGMAR1 is a single-family ER membrane protein (ERG2/sigma1 receptor-like). InterPro assigns families over the whole chain and carries no amyloidogenic signature, so it cannot speak to aggregation propensity either way -- see the propensity stage, which measures that directly."
   },
   "string": {
     "partners": 25,
