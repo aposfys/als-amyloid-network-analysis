@@ -38,6 +38,10 @@ jobs:
           environment-file: environment.yml
           cache-environment: true
 
+      # The runner has no GPU, and the default CUDA wheels fill its disk.
+      - name: Install CPU-only PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install the package
         run: pip install -e ".[dev,embeddings]"
 
